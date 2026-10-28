@@ -1,0 +1,603 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<link rel="icon" href="data:,">
+<title>How RAG Works — Interactive Simulator</title>
+<style>
+:root{
+  --bg:#f7f5f0; --panel:#fffdf8; --panel2:#f0ede4; --ink:#1c2420; --muted:#5c665f;
+  --line:#ddd6c6; --teal:#0f6b5c; --teal-soft:#dcefe9; --amber:#b97a12; --amber-soft:#fbeecd;
+  --red:#b23a2e; --red-soft:#fbe7e2; --blue:#2456a6; --radius:14px;
+  --shadow:0 1px 3px rgba(30,30,20,.08),0 8px 24px rgba(30,30,20,.06);
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+@media (prefers-color-scheme:dark){
+  :root{--bg:#141816;--panel:#1d2320;--panel2:#262d29;--ink:#ece9df;--muted:#a9b3ab;
+  --line:#3a423c;--teal:#4cc2ab;--teal-soft:#173c34;--amber:#e0a83e;--amber-soft:#413311;
+  --red:#ef8a7c;--red-soft:#45231e;--blue:#7ea6ec;--shadow:0 1px 3px rgba(0,0,0,.4)}
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);line-height:1.55;font-size:16px}
+.wrap{max-width:1060px;margin:0 auto;padding:20px 16px 80px}
+h1{font-size:clamp(28px,5vw,42px);line-height:1.12;margin:10px 0 8px;letter-spacing:-.02em}
+h2{font-size:clamp(21px,3.4vw,27px);margin:0 0 6px;line-height:1.25}
+h3{font-size:17px;margin:18px 0 8px}
+p{margin:8px 0}
+.lede{font-size:18px;color:var(--muted);max-width:46em}
+.small{font-size:13.5px;color:var(--muted)}
+.term{border-bottom:2px dotted var(--amber);font-weight:600}
+button{font:inherit;cursor:pointer}
+.btn{background:var(--teal);color:#fff;border:0;border-radius:10px;padding:11px 18px;font-weight:700}
+@media (prefers-color-scheme:dark){.btn{color:#08231d}}
+.btn.secondary{background:var(--panel2);color:var(--ink);border:1px solid var(--line)}
+.btn:active{transform:translateY(1px)}
+.btn:focus-visible,a:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid var(--amber);outline-offset:2px}
+
+/* sticky stage nav */
+.nav{position:sticky;top:0;z-index:20;background:var(--bg);padding:10px 0 8px;border-bottom:1px solid var(--line)}
+.nav-row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.nav a{text-decoration:none;color:var(--ink);font-size:13px;font-weight:600;background:var(--panel);border:1px solid var(--line);border-radius:999px;padding:6px 11px}
+.nav a.active{background:var(--teal);color:#fff;border-color:var(--teal)}
+@media (prefers-color-scheme:dark){.nav a.active{color:#08231d}}
+.nav .run{margin-left:auto}
+.progress{height:6px;background:var(--panel2);border-radius:99px;margin-top:8px;overflow:hidden}
+.progress div{height:100%;background:var(--teal);width:0;transition:width .4s}
+
+section.stage{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:22px;margin:22px 0;scroll-margin-top:110px}
+section.stage.flash{border-color:var(--teal);box-shadow:0 0 0 3px var(--teal-soft)}
+.stage-head{display:flex;gap:14px;align-items:flex-start}
+.stepnum{flex:0 0 auto;width:40px;height:40px;border-radius:50%;background:var(--teal);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px}
+@media (prefers-color-scheme:dark){.stepnum{color:#08231d}}
+.why{background:var(--teal-soft);border-radius:10px;padding:10px 14px;margin:12px 0;font-size:15px}
+.warn{background:var(--amber-soft);border-radius:10px;padding:10px 14px;margin:12px 0;font-size:15px}
+.warn b{color:var(--amber)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:760px){.grid2{grid-template-columns:1fr}}
+label.ctl{display:block;font-weight:700;margin:14px 0 4px}
+label.ctl output{color:var(--teal);font-family:var(--mono)}
+input[type=range]{width:100%;accent-color:var(--teal);height:32px}
+textarea,input[type=text]{width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink)}
+textarea{font-size:14.5px;line-height:1.5}
+.doc{border:1px solid var(--line);border-radius:12px;padding:14px;margin:12px 0;background:var(--panel)}
+.doc h3{margin:0 0 4px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.dot{display:inline-block;width:12px;height:12px;border-radius:50%;flex:0 0 auto}
+.tag{font-size:12px;font-weight:700;border-radius:999px;padding:2px 9px;background:var(--panel2);border:1px solid var(--line)}
+.pillrow{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
+.pill{border:1px solid var(--line);background:var(--panel2);color:var(--ink);border-radius:999px;padding:8px 14px;font-weight:600;font-size:14px}
+.pill.on{background:var(--teal);color:#fff;border-color:var(--teal)}
+@media (prefers-color-scheme:dark){.pill.on{color:#08231d}}
+.chunkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:10px;margin-top:12px}
+.chunk{border:1px solid var(--line);border-left:5px solid var(--tc,#999);border-radius:10px;padding:10px 12px;font-size:13.5px;background:var(--panel);word-break:break-word}
+.chunk .cid{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);display:block;margin-bottom:4px}
+.chunk .ov{background:var(--amber-soft);border-bottom:2px solid var(--amber);border-radius:3px}
+.chunk.dim{opacity:.38}
+.chunk.sel{border-color:var(--teal);box-shadow:0 0 0 2px var(--teal-soft)}
+.vec{font-family:var(--mono);font-size:12px;color:var(--muted);word-break:break-all;display:block;margin-top:6px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:12.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+.tablewrap{overflow-x:auto}
+@media (max-width:640px){ #indexTable th:nth-child(5),#indexTable td:nth-child(5){display:none} #indexTable th:nth-child(4),#indexTable td:nth-child(4){display:none} }
+.rankrow{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;margin:7px 0;background:var(--panel)}
+.rankrow.sel{border-color:var(--teal);background:var(--teal-soft)}
+.rankrow.dim{opacity:.45}
+.rankrow .bar{flex:1;height:12px;background:var(--panel2);border-radius:99px;overflow:hidden;min-width:70px}
+.rankrow .bar div{height:100%;background:var(--teal)}
+.rankrow .score{font-family:var(--mono);font-weight:700;width:52px;text-align:right}
+.rankrow .who{font-family:var(--mono);font-size:13px;font-weight:700;white-space:nowrap}
+pre.promptbox{white-space:pre-wrap;word-break:break-word;background:#17211d;color:#e8f2ec;border-radius:12px;padding:16px;font-family:var(--mono);font-size:13.5px;line-height:1.6;max-height:520px;overflow:auto}
+@media (prefers-color-scheme:dark){pre.promptbox{background:#0c100e}}
+pre.promptbox .hl{color:#ffd97a}
+.answer{border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--panel)}
+.answer.good{border-color:var(--teal)}
+.answer.bad{border-color:var(--red);background:var(--red-soft)}
+.cite{font-family:var(--mono);font-size:12.5px;background:var(--teal-soft);color:var(--teal);border-radius:6px;padding:1px 6px;font-weight:700;white-space:nowrap}
+svg text{font-family:var(--sans)}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:13.5px;margin:8px 0}
+.legend span{display:inline-flex;gap:6px;align-items:center}
+.kicker{font-size:13px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;color:var(--teal)}
+.stat{display:inline-block;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:8px 14px;margin:4px 6px 4px 0;font-size:14px}
+.stat b{font-family:var(--mono);color:var(--teal)}
+details{margin:10px 0}
+summary{cursor:pointer;font-weight:700}
+footer{color:var(--muted);font-size:14px;margin-top:30px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="kicker">Interactive simulator · Works offline · No sign-up</p>
+  <h1>How RAG works — by actually running it</h1>
+  <p class="lede"><strong>RAG</strong> stands for <strong>Retrieval-Augmented Generation</strong>. In plain English: before an AI answers your question, it first <em>looks up</em> the most relevant pages from your own documents, then writes its answer using those pages — instead of answering from memory alone and risking making things up.</p>
+  <p>Below is a working miniature of a real RAG system. Every stage is live: change a slider, edit a document, or ask a different question, and watch the whole pipeline react. The maths here is simplified (real systems use bigger numbers), but every step is the real step, in the real order.</p>
+  <p><button class="btn" id="runAll">▶ Run the whole pipeline end to end</button>
+  <button class="btn secondary" id="dlBtn">⬇ Save this file</button></p>
+  <p class="small">Tip: this page is one single HTML file. The “Save this file” button downloads a copy you can open in any browser, share, or read the code of — everything (data, maths, answers) runs on your device.</p>
+</header>
+
+<nav class="nav" aria-label="Pipeline stages">
+  <div class="nav-row" id="navRow">
+    <a href="#s1">1 · Documents</a><a href="#s2">2 · Chunking</a><a href="#s3">3 · Embedding</a>
+    <a href="#s4">4 · Index</a><a href="#s5">5 · Query</a><a href="#s6">6 · Retrieval</a>
+    <a href="#s7">7 · Prompt</a><a href="#s8">8 · Answer</a><a href="#s9">★ Compare</a>
+    <span class="run small" id="pipeStatus">Pipeline not run yet</span>
+  </div>
+  <div class="progress"><div id="progBar"></div></div>
+</nav>
+
+<!-- ============ STAGE 1 : DOCUMENTS ============ -->
+<section class="stage" id="s1">
+  <div class="stage-head"><div class="stepnum">1</div><div>
+    <h2>Documents — the knowledge the AI is allowed to use</h2>
+    <p>Every RAG system starts with source material: manuals, policies, help pages, notes. The AI can only ever answer from what is in here. Pick a document set, read the documents — and try editing one (change a number!) to see later stages change.</p>
+  </div></div>
+  <div class="why"><strong>Why it matters:</strong> a normal AI chatbot only knows what it learned during training, which may be old or generic. RAG exists to give it <em>your</em> facts — current, private, and checkable.</div>
+  <div class="pillrow" role="group" aria-label="Choose a document set">
+    <button class="pill setbtn on" data-set="work">📘 Set A — Nova Roasters workplace handbook</button>
+    <button class="pill setbtn" data-set="space">🚀 Set B — Orbit Station crew guide</button>
+  </div>
+  <div id="docList"></div>
+  <div class="warn"><strong>What can go wrong here:</strong> if a fact is not in the documents, RAG cannot invent it honestly — the answer should say “I don’t know.” Out-of-date documents also mean out-of-date answers. Garbage in, garbage out.</div>
+</section>
+
+<!-- ============ STAGE 2 : CHUNKING ============ -->
+<section class="stage" id="s2">
+  <div class="stage-head"><div class="stepnum">2</div><div>
+    <h2>Chunking — cutting documents into bite-size pieces</h2>
+    <p>Documents are too long to hand to the AI whole, so ahead of time (once, not per question) each document is cut into small pieces called <span class="term">chunks</span>. Drag the sliders and watch the text re-cut itself live. The <mark>highlighted start</mark> of each chunk is the <span class="term">overlap</span> — text repeated from the previous chunk so a sentence cut in half still makes sense in at least one chunk.</p>
+  </div></div>
+  <label class="ctl" for="chunkSize">Chunk size: <output id="chunkSizeOut"></output> characters <span class="small">(real systems usually measure in <span class="term">tokens</span> — roughly, pieces of words; ~4 characters ≈ 1 token)</span></label>
+  <input type="range" id="chunkSize" min="140" max="520" step="20" value="300">
+  <label class="ctl" for="overlap">Overlap: <output id="overlapOut"></output> characters</label>
+  <input type="range" id="overlap" min="0" max="140" step="10" value="50">
+  <div>
+    <span class="stat">Chunks created: <b id="chunkCount">0</b></span>
+    <span class="stat">Documents: <b id="docCount">0</b></span>
+    <span class="stat">Avg. chunk: <b id="avgChunk">0</b> chars</span>
+  </div>
+  <div id="chunkGrid" class="chunkgrid"></div>
+  <div class="warn"><strong>What can go wrong:</strong> chunks <em>too big</em> bury the one useful sentence in noise and waste space in the prompt. Chunks <em>too small</em> lose context (“…it costs $75” — what costs $75?). Overlap <em>too low</em> loses meaning at the cuts; too high stores the same text many times.</div>
+</section>
+
+<!-- ============ STAGE 3 : EMBEDDING ============ -->
+<section class="stage" id="s3">
+  <div class="stage-head"><div class="stepnum">3</div><div>
+    <h2>Embedding — turning meaning into numbers</h2>
+    <p>Each chunk is fed to a special model called an <span class="term">embedding model</span>, which converts the chunk’s <em>meaning</em> into a list of numbers called a <span class="term">vector</span>. Chunks that mean similar things get similar numbers — that is the whole trick that makes smart search possible.</p>
+  </div></div>
+  <p class="small">Below, each chunk shows the first 8 numbers of its vector. Real vectors have hundreds or thousands of numbers (a common size is 1,536) — far too many to print, so this simulator shows a shortened version and plots just 2 of the numbers on the map.</p>
+  <div id="vecList" class="chunkgrid"></div>
+  <h3>The meaning-space map</h3>
+  <p>Imagine every chunk placed as a dot on a map where <strong>distance = difference in meaning</strong>. Dots near each other talk about similar things. Colours = the document each chunk came from. When you ask a question in Stage 5, its dot will land on this same map.</p>
+  <div class="legend" id="plotLegend"></div>
+  <svg id="plot" viewBox="0 0 640 400" width="100%" role="img" aria-label="2D plot of chunks in meaning space" style="background:var(--panel2);border:1px solid var(--line);border-radius:12px"></svg>
+  <div class="warn"><strong>What can go wrong:</strong> the embedding model decides what “similar” means. A weak model may park “sick leave” next to “feeling sick about work,” and retrieval later can only find what this map got right.</div>
+</section>
+
+<!-- ============ STAGE 4 : INDEX ============ -->
+<section class="stage" id="s4">
+  <div class="stage-head"><div class="stepnum">4</div><div>
+    <h2>The index — a searchable store of chunks + vectors</h2>
+    <p>All chunks and their vectors are saved together in a <span class="term">vector database</span> (also called the index or vector store). Think of it as a library catalogue where books are shelved <em>by meaning</em>, so “find me things like this question” is a fast lookup instead of reading every page.</p>
+  </div></div>
+  <div class="why"><strong>Done once, ahead of time:</strong> Stages 1–4 happen before anyone asks anything. That is why RAG answers feel instant — the searching library was built in advance. Only Stages 5–8 happen per question.</div>
+  <div class="tablewrap"><table id="indexTable">
+    <thead><tr><th>Chunk</th><th>From document</th><th>Text (start)</th><th>Vector (first 4 numbers)</th><th>Map position</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p><span class="stat">Index size: <b id="indexSize">0</b> chunks searchable</span></p>
+  <div class="warn"><strong>What can go wrong:</strong> if new documents are added but the index is not rebuilt, the AI silently answers from the old library and never mentions the new pages.</div>
+</section>
+
+<!-- ============ STAGE 5 : QUERY ============ -->
+<section class="stage" id="s5">
+  <div class="stage-head"><div class="stepnum">5</div><div>
+    <h2>Your question — embedded into the same map</h2>
+    <p>Type a question, or tap a preset. Your question is run through the <em>same</em> embedding model, so it becomes a vector too and lands as a <strong>★ star</strong> on the meaning-space map (scroll up to Stage 3 to see it, or watch the mini-map in Stage 6). Retrieval is now just: “which chunk dots are closest to the star?”</p>
+  </div></div>
+  <div class="pillrow" id="presetRow"></div>
+  <label class="ctl" for="queryInput">Your question</label>
+  <input type="text" id="queryInput" value="">
+  <p class="small">Its vector: <span class="vec" id="queryVec" style="display:inline"></span></p>
+  <div class="warn"><strong>What can go wrong:</strong> vague questions land in vague places on the map. “Tell me about the thing” has no strong meaning signal, so retrieval guesses. Specific words from the documents (“parental leave”, “meal allowance”) pull the star to the right neighbourhood.</div>
+</section>
+
+<!-- ============ STAGE 6 : RETRIEVAL ============ -->
+<section class="stage" id="s6">
+  <div class="stage-head"><div class="stepnum">6</div><div>
+    <h2>Retrieval — fetching the closest chunks</h2>
+    <p>The system scores <em>every</em> chunk against your question. The score is a <span class="term">similarity score</span> from 0 to 1 — how close the chunk’s vector sits to the question’s vector (this is usually measured with <span class="term">cosine similarity</span>: 1 = same direction/meaning, 0 = unrelated). It then keeps the best few. You control how many, and how good is good enough.</p>
+  </div></div>
+  <div class="grid2">
+    <div>
+      <label class="ctl" for="topK">Top K — fetch the best <output id="topKOut"></output> chunks</label>
+      <input type="range" id="topK" min="1" max="6" step="1" value="3">
+    </div>
+    <div>
+      <label class="ctl" for="thresh">Similarity threshold — ignore chunks scoring below <output id="threshOut"></output></label>
+      <input type="range" id="thresh" min="0" max="0.9" step="0.05" value="0.3">
+    </div>
+  </div>
+  <svg id="plot2" viewBox="0 0 640 400" width="100%" role="img" aria-label="Meaning space with query and selected chunks highlighted" style="background:var(--panel2);border:1px solid var(--line);border-radius:12px"></svg>
+  <p class="small">On the map: <strong>★</strong> = your question · ringed dots = retrieved chunks · faded dots = not retrieved.</p>
+  <h3>Every chunk, ranked by similarity to your question</h3>
+  <div id="rankList"></div>
+  <p><span class="stat">Retrieved: <b id="selCount">0</b> chunks</span><span class="stat">Best score: <b id="bestScore">–</b></span></p>
+  <div class="warn"><strong>What can go wrong:</strong> Top K <em>too high</em> drags in off-topic chunks that confuse the answer (“noise”). Top K <em>too low</em> or a threshold <em>too strict</em> can miss the one chunk with the answer. There is no perfect setting — it is a tuning trade-off, and now you can feel it.</div>
+</section>
+
+<!-- ============ STAGE 7 : PROMPT ASSEMBLY ============ -->
+<section class="stage" id="s7">
+  <div class="stage-head"><div class="stepnum">7</div><div>
+    <h2>Prompt assembly — building the augmented prompt</h2>
+    <p>This is the “augmented” part of the name. Nobody sends your bare question to the AI. The system quietly builds a bigger prompt: an instruction, plus the retrieved chunks as evidence, plus your question. This exact text (live, updating as you change anything above) is what the language model actually receives.</p>
+  </div></div>
+  <pre class="promptbox" id="promptBox"></pre>
+  <p><span class="stat">Prompt length: <b id="promptLen">0</b> characters</span><span class="small">Real models limit this — the <em>context window</em>. It is one reason chunk size and Top K matter: everything retrieved has to fit.</span></p>
+  <div class="warn"><strong>What can go wrong:</strong> if retrieval fetched the wrong chunks, this prompt confidently hands the AI the wrong evidence. The model can only be as grounded as what it is given here.</div>
+</section>
+
+<!-- ============ STAGE 8 : GENERATION ============ -->
+<section class="stage" id="s8">
+  <div class="stage-head"><div class="stepnum">8</div><div>
+    <h2>Generation — the answer, written from the evidence</h2>
+    <p>The language model (the <span class="term">LLM</span> — the same kind of AI as a chatbot) reads the assembled prompt and writes the final answer. A well-behaved RAG answer sticks to the chunks and shows its sources, so you can check it. Press the button — in this simulator the “model” picks the most relevant sentences from the retrieved chunks, which is a fair miniature of what grounding means.</p>
+  </div></div>
+  <p><button class="btn" id="genBtn">✦ Generate the RAG answer</button></p>
+  <div class="answer good" id="ragAnswer"><p class="small">No answer yet. Run the pipeline or press Generate.</p></div>
+  <div class="warn"><strong>What can go wrong:</strong> even with good chunks, a model can misread a number or blend two chunks together. Citations are the defence: always check the cited chunk before trusting a figure.</div>
+</section>
+
+<!-- ============ STAGE 9 : COMPARISON ============ -->
+<section class="stage" id="s9">
+  <div class="stage-head"><div class="stepnum" style="background:var(--amber)">★</div><div>
+    <h2>The whole point — same question, with and without RAG</h2>
+    <p>Left: a plain LLM answering from training memory alone. It sounds confident, but these are private company/station facts it never saw — so it generalises, and its specific numbers are invented. Right: the RAG answer from Stage 8, built only from your documents, with sources you can verify.</p>
+  </div></div>
+  <div class="grid2">
+    <div>
+      <h3>❌ Without RAG — LLM alone</h3>
+      <div class="answer bad" id="noRagAnswer"></div>
+    </div>
+    <div>
+      <h3>✅ With RAG — grounded + cited</h3>
+      <div class="answer good" id="ragAnswer2"></div>
+    </div>
+  </div>
+  <div class="why"><strong>The one-sentence summary to remember:</strong> RAG = search first, then write. The LLM supplies the language skills; your documents supply the facts.</div>
+  <details>
+    <summary>Recap — the pipeline in 10 seconds</summary>
+    <p><strong>Once, ahead of time:</strong> Documents → cut into <strong>chunks</strong> (with overlap) → each chunk <strong>embedded</strong> into a vector → vectors stored in an <strong>index</strong>.<br>
+    <strong>Per question:</strong> question <strong>embedded</strong> → <strong>retrieve</strong> Top K closest chunks above the threshold → <strong>assemble</strong> prompt (instruction + chunks + question) → LLM <strong>generates</strong> a grounded, cited answer.</p>
+  </details>
+</section>
+
+<footer>
+  <p>Built as a teaching simulator: the embedding maths, similarity scores, and answer generation are simplified stand-ins for real models (which use thousands of vector dimensions and trained neural networks), but the pipeline, the controls, and the failure modes are the real ones used in production RAG systems.</p>
+</footer>
+</div>
+
+<script>
+"use strict";
+/* ================= DATA ================= */
+var TOPICS = {
+  leave:  {label:"Leave & time off", color:"#0f6b5c", cx:18, cy:22, kw:["leave","holiday","vacation","day off","days off","sick","parental","annual","carry over","time off"]},
+  pay:    {label:"Pay & expenses",   color:"#b97a12", cx:78, cy:18, kw:["expense","expenses","pay","salary","meal","allowance","receipt","reimburse","claim","money","cost","budget","invoice"]},
+  remote: {label:"Remote work",      color:"#2456a6", cx:22, cy:78, kw:["remote","home","office","hybrid","stipend","hours","work from","equipment","desk"]},
+  it:     {label:"IT & security",    color:"#8a3b7a", cx:80, cy:76, kw:["password","security","vpn","laptop","phishing","mfa","login","device","software","account"]},
+  crew:   {label:"Crew & schedule",  color:"#0f6b5c", cx:18, cy:22, kw:["crew","shift","schedule","sleep","roster","duty","commander","team"]},
+  food:   {label:"Food & water",     color:"#b97a12", cx:78, cy:18, kw:["food","meal","water","eat","menu","ration","drink","kitchen"]},
+  health: {label:"Health & exercise",color:"#2456a6", cx:22, cy:78, kw:["exercise","health","treadmill","medical","doctor","fitness","bone","muscle","checkup"]},
+  safety: {label:"Safety & emergencies", color:"#b23a2e", cx:80, cy:76, kw:["emergency","fire","alarm","leak","evacuate","safety","oxygen","drill","danger"]}
+};
+var SETS = {
+  work: {
+    name:"Nova Roasters workplace handbook",
+    presets:["How many days of annual leave do I get, and can I carry any over?","What is the meal allowance when I travel for work?","How many days a week can I work from home?"],
+    docs:[
+      {id:"w1",topic:"leave",title:"Leave & Time Off Policy",text:"Full-time staff at Nova Roasters receive 25 days of annual leave each year, on top of public holidays. You may carry over up to 5 unused days into the next year, but carried-over days must be used by the end of March. Sick leave is separate: you get 10 paid sick days per year, and a doctor's note is required after 3 sick days in a row. Parental leave is 16 weeks at full pay for the primary carer and 4 weeks for the secondary carer. Leave requests must be entered in the HR portal at least 2 weeks ahead, and your manager approves them within 5 working days."},
+      {id:"w2",topic:"pay",title:"Pay & Expenses Guide",text:"Salaries are paid on the last working day of each month. When you travel for work, the meal allowance is 75 dollars per day, and hotel costs are covered up to 180 dollars per night. Keep every receipt: expense claims without a receipt cannot be reimbursed. Submit expense claims within 30 days of the trip, using the Finance app. Any single expense over 500 dollars needs your manager's approval before you spend the money. Taxi fares to and from the airport are reimbursable, but minibar and entertainment costs are never covered."},
+      {id:"w3",topic:"remote",title:"Remote & Hybrid Work Policy",text:"Staff may work from home up to 3 days per week; Tuesday and Thursday are anchor days when everyone is expected in the office. Core hours are 10am to 3pm Pacific Time, when you must be reachable on chat and available for meetings. Nova Roasters provides a one-time home office stipend of 600 dollars for a desk, chair, and monitor. You must work from your home address on file; working from another country needs written approval from HR because of tax and insurance rules. Team leads may ask staff to come in on extra days during launch weeks, with at least 1 week of notice."},
+      {id:"w4",topic:"it",title:"IT & Security Handbook",text:"Every account must use MFA (multi-factor authentication) — a password plus a code from your phone — because passwords alone are too easy to steal. Passwords must be at least 14 characters and unique to each service; use the company password manager. Connect to the VPN whenever you use company systems outside the office network. If you receive a suspicious email, do not click its links: report it with the phishing button in your inbox. Lock your laptop whenever you step away, and report a lost device to IT within 1 hour so it can be wiped remotely."}
+    ],
+    noRag:{
+      q0:"Most companies offer somewhere around 15 to 20 days of annual leave per year, and many allow you to carry over a small number of unused days, often around a week, though the exact rules vary a lot by employer. (No source — this is a general guess. The real Nova Roasters numbers, 25 days and 5 carry-over days, are in the handbook the model never saw.)",
+      q1:"A typical meal allowance for work travel is often in the range of 40 to 60 dollars per day at many companies, but policies differ widely and some employers just reimburse actual receipts instead. (No source — invented range. The real figure, $75 per day, is only in the document.)",
+      q2:"Many employers with hybrid policies allow around 2 to 3 days a week of working from home, but it depends entirely on the company and the team. (No source — a vague generalisation. The handbook's exact rule, 3 days with Tuesday/Thursday anchor days, is what the employee actually needs.)",
+      generic:"A plain LLM would answer this from general training knowledge: fluent, confident, and generic — but it has never seen these documents, so any specific number, date, or rule it gives is a guess that may be wrong, and it cannot show you where the answer came from."
+    }
+  },
+  space: {
+    name:"Orbit Station crew guide",
+    presets:["How long do crew members exercise each day, and why?","What happens when the fire alarm sounds on the station?","How much water does each crew member get per day?"],
+    docs:[
+      {id:"s1",topic:"crew",title:"Crew Schedule & Sleep",text:"The station crew follows a 16-orbit day, waking at 06:00 station time. Each crew member works a planned schedule of science, maintenance, and meetings, with the commander holding a daily planning call at 08:00. Sleep is protected: every crew member gets an 8.5 hour sleep period, and the sleep quarters are shielded and quiet. Crew rotations last about 6 months. The roster guarantees each person one full rest day per week, and heavy tasks like spacewalks are never scheduled on back-to-back days."},
+      {id:"s2",topic:"food",title:"Food & Water Rations",text:"Each crew member receives 2.8 litres of water per day for drinking and food preparation; most of it is recycled from the station's water recovery system. Meals are planned on an 8-day rotating menu designed by dietitians, providing about 2,700 calories per day. Fresh fruit and vegetables arrive only on resupply vehicles, roughly every 90 days, and are eaten first. Food is stored in colour-coded packs: blue for breakfast items, green for main meals, and red for emergency rations, which must never be opened without the commander's order."},
+      {id:"s3",topic:"health",title:"Health & Exercise Protocol",text:"Every crew member exercises for 2.5 hours per day, split between the treadmill, the cycle, and the resistance device. This is not optional: without gravity, bones can lose 1 to 1.5 percent of their mass per month and muscles weaken quickly. The flight surgeon reviews each person's exercise and sleep data weekly. A full medical checkup happens every 30 days, including blood tests and eye exams, because fluid shifts in weightlessness can affect vision. Any crew member feeling unwell must report it to the medical officer the same day."},
+      {id:"s4",topic:"safety",title:"Safety & Emergency Procedures",text:"If the fire alarm sounds, crew members stop work immediately, close the hatch of the affected module if it is safe to do so, and gather at the docked crew vehicle. The crew vehicle is the lifeboat: in a serious emergency such as a major leak or an uncontrolled fire, the crew evacuates in it and returns to Earth. Emergency drills run every 2 weeks so the response becomes automatic. Oxygen masks are stored at every hatch, and the first person to reach a mask puts it on before helping others. Never use the airlock during an emergency unless the commander orders it."}
+    ],
+    noRag:{
+      q0:"Astronauts generally need to exercise quite a lot in space — commonly reported figures are around 2 hours a day — to fight muscle and bone loss in weightlessness. (No source — approximately right by luck, but not the station's exact protocol of 2.5 hours, and it cannot cite anything.)",
+      q1:"In a fire emergency on a space station, the crew would follow their training, locate the fire, and try to contain it, possibly retreating to their return vehicle if needed. (No source — generic and missing the actual procedure: close the hatch, gather at the crew vehicle, evacuate if uncontrolled.)",
+      q2:"Water on a space station is carefully recycled and rationed, with each astronaut typically getting a few litres per day for drinking and food. (No source — vague. The guide's exact figure is 2.8 litres per day.)",
+      generic:"A plain LLM would answer this from general training knowledge: fluent, confident, and generic — but it has never seen this crew guide, so any specific number, date, or rule it gives is a guess that may be wrong, and it cannot show you where the answer came from."
+    }
+  }
+};
+
+/* ================= STATE ================= */
+var state = { setKey:"work", chunks:[], ranked:[], selected:[], query:"", presetIdx:0 };
+
+/* ================= HELPERS ================= */
+function $(id){return document.getElementById(id);}
+function hashStr(s){var h=2166136261;for(var i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0);}
+function seededVec(text,n){var h=hashStr(text),out=[];for(var i=0;i<n;i++){h=(Math.imul(h,1103515245)+12345)>>>0;out.push(((h%2000)/1000-1).toFixed(2));}return out;}
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;");}
+function words(s){return s.toLowerCase().replace(/[^a-z0-9 ]/g," ").split(/\s+/).filter(function(w){return w.length>2;});}
+
+/* ================= STAGE 1: DOCUMENTS ================= */
+function renderDocs(){
+  var set=SETS[state.setKey];
+  $("docList").innerHTML=set.docs.map(function(d,i){
+    var t=TOPICS[d.topic];
+    return '<div class="doc"><h3><span class="dot" style="background:'+t.color+'"></span>'+esc(d.title)+
+      ' <span class="tag">'+t.label+'</span></h3>'+
+      '<p class="small">Document '+(i+1)+' of '+set.docs.length+' — you can edit this text; the pipeline below rebuilds itself from your version.</p>'+
+      '<textarea rows="6" data-doc="'+d.id+'" aria-label="Edit document: '+esc(d.title)+'">'+esc(d.text)+'</textarea></div>';
+  }).join("");
+  var tas=document.querySelectorAll("#docList textarea");
+  for(var i=0;i<tas.length;i++){ tas[i].addEventListener("input",function(){
+    var doc=set.docs.filter(function(d){return d.id===this.getAttribute("data-doc");},this)[0];
+    // (filter with thisArg quirk avoided below)
+  });}
+  // attach listeners properly
+  tas=document.querySelectorAll("#docList textarea");
+  Array.prototype.forEach.call(tas,function(ta){
+    ta.addEventListener("input",function(){
+      for(var j=0;j<set.docs.length;j++){ if(set.docs[j].id===ta.getAttribute("data-doc")) set.docs[j].text=ta.value; }
+      rebuild();
+    });
+  });
+  $("docCount").textContent=set.docs.length;
+  var pr=$("presetRow"); pr.innerHTML="";
+  set.presets.forEach(function(q,i){
+    var b=document.createElement("button"); b.className="pill preset"; b.textContent="Ask: "+q;
+    b.addEventListener("click",function(){ state.presetIdx=i; state.query=q; $("queryInput").value=q; rebuild(); scrollToId("s6"); });
+    pr.appendChild(b);
+  });
+}
+
+/* ================= STAGE 2: CHUNKING ================= */
+function buildChunks(){
+  var size=parseInt($("chunkSize").value,10), ov=parseInt($("overlap").value,10);
+  if(ov>=size){ ov=size-20; $("overlap").value=ov; }
+  $("chunkSizeOut").textContent=size; $("overlapOut").textContent=ov;
+  var set=SETS[state.setKey], chunks=[], n=0;
+  set.docs.forEach(function(d){
+    var step=Math.max(20,size-ov), text=d.text;
+    for(var start=0; start<text.length; start+=step){
+      var piece=text.slice(start,start+size); if(piece.trim().length<12 && start>0) break;
+      n++;
+      chunks.push({num:n, docId:d.id, docTitle:d.title, topic:d.topic, text:piece, overlap:(start===0?0:ov), start:start});
+      if(start+size>=text.length) break;
+    }
+  });
+  state.chunks=chunks;
+  $("chunkCount").textContent=chunks.length;
+  $("avgChunk").textContent=chunks.length?Math.round(chunks.reduce(function(a,c){return a+c.text.length;},0)/chunks.length):0;
+  $("chunkGrid").innerHTML=chunks.map(function(c){
+    var t=TOPICS[c.topic];
+    var body = c.overlap>0 ? '<span class="ov">'+esc(c.text.slice(0,c.overlap))+'</span>'+esc(c.text.slice(c.overlap)) : esc(c.text);
+    return '<div class="chunk" id="chunk-'+c.num+'" style="--tc:'+t.color+'"><span class="cid">CHUNK '+c.num+' · from “'+esc(c.docTitle)+'”</span>'+body+'</div>';
+  }).join("");
+}
+
+/* ================= STAGE 3: EMBEDDING ================= */
+function chunkXY(c){
+  var t=TOPICS[c.topic], h=hashStr(c.text);
+  var jx=((h%1600)/100)-8, jy=(((h>>6)%1600)/100)-8;
+  return {x:Math.max(3,Math.min(97,t.cx+jx)), y:Math.max(4,Math.min(96,t.cy+jy))};
+}
+function renderEmbeddings(){
+  $("vecList").innerHTML=state.chunks.map(function(c){
+    var v=seededVec(c.text,8), t=TOPICS[c.topic];
+    return '<div class="chunk" style="--tc:'+t.color+'"><span class="cid">CHUNK '+c.num+' · '+t.label+'</span>“'+esc(c.text.slice(0,70))+'…”'+
+      '<span class="vec">vector: ['+v.join(", ")+', …] <br>(8 of ~1,536 numbers shown)</span></div>';
+  }).join("");
+  var used={}, legend="";
+  state.chunks.forEach(function(c){ if(!used[c.topic]){used[c.topic]=1; legend+='<span><span class="dot" style="background:'+TOPICS[c.topic].color+'"></span>'+TOPICS[c.topic].label+'</span>';} });
+  $("plotLegend").innerHTML=legend;
+  drawPlot($("plot"), false); drawPlot($("plot2"), true);
+}
+function drawPlot(svg, withQuery){
+  if(!svg) return;
+  var NS="http://www.w3.org/2000/svg", s="";
+  s+='<line x1="320" y1="10" x2="320" y2="390" stroke="var(--line)"/><line x1="10" y1="200" x2="630" y2="200" stroke="var(--line)"/>';
+  s+='<text x="14" y="22" font-size="12" fill="var(--muted)">meaning →</text>';
+  var selNums={}; state.selected.forEach(function(r){selNums[r.chunk.num]=1;});
+  state.chunks.forEach(function(c){
+    var p=chunkXY(c), cx=p.x/100*640, cy=p.y/100*400, t=TOPICS[c.topic];
+    var isSel=withQuery&&selNums[c.num], dim=withQuery&&state.query&&!isSel;
+    s+='<circle cx="'+cx+'" cy="'+cy+'" r="'+(isSel?13:9)+'" fill="'+t.color+'" fill-opacity="'+(dim?0.18:0.85)+'" stroke="'+(isSel?"var(--ink)":"none")+'" stroke-width="'+(isSel?2.5:0)+'"/>';
+    s+='<text x="'+cx+'" y="'+(cy+3.5)+'" font-size="9.5" font-weight="700" text-anchor="middle" fill="#fff" fill-opacity="'+(dim?0.3:1)+'">'+c.num+'</text>';
+  });
+  if(withQuery && state.query){
+    var qp=queryXY();
+    s+='<text x="'+(qp.x/100*640)+'" y="'+(qp.y/100*400+8)+'" font-size="26" text-anchor="middle" fill="var(--amber)" stroke="var(--ink)" stroke-width="0.6">★</text>';
+  }
+  svg.innerHTML=s;
+}
+
+/* ================= STAGE 4: INDEX ================= */
+function renderIndex(){
+  var tb=document.querySelector("#indexTable tbody");
+  tb.innerHTML=state.chunks.map(function(c){
+    var v=seededVec(c.text,4), p=chunkXY(c);
+    return '<tr><td><strong>#'+c.num+'</strong></td><td>'+esc(c.docTitle)+'</td><td>'+esc(c.text.slice(0,52))+'…</td><td style="font-family:var(--mono);font-size:12.5px">['+v.join(", ")+', …]</td><td>'+Math.round(p.x)+', '+Math.round(p.y)+'</td></tr>';
+  }).join("");
+  $("indexSize").textContent=state.chunks.length;
+}
+
+/* ================= STAGE 5+6: QUERY & RETRIEVAL ================= */
+function queryTopicWeights(){
+  var q=state.query.toLowerCase(), w={}, any=false;
+  Object.keys(TOPICS).forEach(function(k){
+    var set=SETS[state.setKey], inSet=set.docs.some(function(d){return d.topic===k;});
+    if(!inSet) return;
+    var score=0; TOPICS[k].kw.forEach(function(kw){ if(q.indexOf(kw)>=0) score+= kw.indexOf(" ")>=0?2:1; });
+    if(score>0){w[k]=score; any=true;}
+  });
+  return any?w:null;
+}
+function queryXY(){
+  var w=queryTopicWeights();
+  if(!w){ return {x:50,y:50}; }
+  var sx=0,sy=0,tot=0; Object.keys(w).forEach(function(k){sx+=TOPICS[k].cx*w[k]; sy+=TOPICS[k].cy*w[k]; tot+=w[k];});
+  return {x:sx/tot, y:sy/tot};
+}
+function scoreChunks(){
+  var w=queryTopicWeights(), qwords=words(state.query), qp=queryXY();
+  var ranked=state.chunks.map(function(c){
+    var p=chunkXY(c), dist=Math.sqrt(Math.pow(p.x-qp.x,2)+Math.pow(p.y-qp.y,2));
+    var distScore=Math.max(0,1-dist/95);
+    var cwords=words(c.text), hits=0;
+    qwords.forEach(function(qw){ if(cwords.indexOf(qw)>=0) hits++; });
+    var kwScore=qwords.length? hits/Math.max(3,qwords.length):0;
+    var topicBonus=(w&&w[c.topic])?0.18:0;
+    var jitter=((hashStr(c.text+state.query)%100)/100-0.5)*0.05;
+    var score=Math.max(0.02,Math.min(0.98, distScore*0.55 + kwScore*0.35 + topicBonus + jitter));
+    return {chunk:c, score:score};
+  });
+  ranked.sort(function(a,b){return b.score-a.score;});
+  state.ranked=ranked;
+  var K=parseInt($("topK").value,10), th=parseFloat($("thresh").value);
+  $("topKOut").textContent=K; $("threshOut").textContent=th.toFixed(2);
+  state.selected=ranked.filter(function(r,i){ return i<K && r.score>=th; });
+  $("queryVec").textContent="["+seededVec(state.query||"empty",8).join(", ")+", …]";
+  $("rankList").innerHTML=ranked.map(function(r,i){
+    var sel=state.selected.indexOf(r)>=0;
+    var belowTh=r.score<th;
+    return '<div class="rankrow '+(sel?"sel":"")+' '+((!sel)?"dim":"")+'"><span class="who">#'+r.chunk.num+'</span>'+
+      '<span style="flex:0 1 220px;font-size:13.5px">'+esc(r.chunk.text.slice(0,60))+'…</span>'+
+      '<span class="bar"><div style="width:'+Math.round(r.score*100)+'%"></div></span>'+
+      '<span class="score">'+r.score.toFixed(2)+'</span>'+
+      '<span class="tag">'+(sel?"✓ retrieved":(i<K?"below threshold":"rank "+(i+1)))+'</span></div>';
+  }).join("");
+  $("selCount").textContent=state.selected.length;
+  $("bestScore").textContent=ranked.length?ranked[0].score.toFixed(2):"–";
+  // highlight chunks in stage 2 grid
+  state.chunks.forEach(function(c){
+    var el=$("chunk-"+c.num); if(!el) return;
+    var isSel=state.selected.some(function(r){return r.chunk.num===c.num;});
+    el.classList.toggle("sel",isSel); el.classList.toggle("dim",!!state.query&&!isSel);
+  });
+  drawPlot($("plot"), false); drawPlot($("plot2"), true);
+}
+
+/* ================= STAGE 7: PROMPT ================= */
+function renderPrompt(){
+  var ctx=state.selected.map(function(r){ return "[Chunk "+r.chunk.num+" — from “"+r.chunk.docTitle+"”]\n"+r.chunk.text; }).join("\n\n");
+  if(!ctx) ctx="(no chunks passed the retrieval settings — the model has no evidence to work from)";
+  var p="SYSTEM INSTRUCTION:\nYou are a helpful assistant. Answer the user's question using ONLY the context below. If the answer is not in the context, say you don't know. Always cite the chunk numbers you used.\n\nCONTEXT:\n"+ctx+"\n\nUSER QUESTION:\n"+(state.query||"(no question yet)")+"\n\nANSWER:";
+  $("promptBox").textContent=p;
+  $("promptLen").textContent=p.length;
+  return p;
+}
+
+/* ================= STAGE 8: GENERATION ================= */
+function generate(){
+  var box=$("ragAnswer");
+  if(!state.selected.length){
+    box.innerHTML="<p><strong>I don't know.</strong> No chunks passed the current Top K / threshold settings, so there is no evidence to answer from. In a real RAG system this is the honest outcome — try lowering the threshold or raising Top K in Stage 6. Notice how different this is from the no-RAG answer on the left below, which guesses anyway.</p>";
+  } else {
+    var qwords=words(state.query), picked=[];
+    state.selected.forEach(function(r){
+      var sents=r.chunk.text.split(/(?<=\.)\s+/);
+      sents.forEach(function(s){
+        var sw=words(s), hits=0; qwords.forEach(function(qw){ if(sw.indexOf(qw)>=0) hits++; });
+        picked.push({s:s, chunk:r.chunk.num, hits:hits, score:r.score});
+      });
+    });
+    picked.sort(function(a,b){return (b.hits-a.hits)||(b.score-a.score);});
+    var complete=picked.filter(function(p){return /[.!?]$/.test(p.s.trim());});
+    if(complete.length>=2) picked=complete;
+    var top=picked.slice(0,3).filter(function(p){return p.s.length>15;});
+    if(!top.length) top=picked.slice(0,2);
+    var used={}, cites=[];
+    var html="<p>Based on the documents you provided:</p><ul>"+top.map(function(p){
+      if(!used[p.chunk]){used[p.chunk]=1;cites.push(p.chunk);}
+      return "<li>"+esc(p.s)+' <span class="cite">Chunk '+p.chunk+"</span></li>";
+    }).join("")+"</ul><p class='small'>Sources used: "+cites.map(function(n){return "Chunk "+n;}).join(", ")+". Every claim above can be checked against that chunk in Stage 2.</p>";
+    box.innerHTML=html;
+  }
+  $("ragAnswer2").innerHTML=box.innerHTML;
+  renderNoRag();
+}
+function renderNoRag(){
+  var set=SETS[state.setKey], idx=set.presets.indexOf(state.query);
+  var txt = idx>=0 ? set.noRag["q"+idx] : set.noRag.generic;
+  $("noRagAnswer").innerHTML="<p>"+esc(txt)+"</p><p class='small'>No sources. No way to check it. Specific facts about “"+esc(set.name)+"” were never in the model's training — so it fills the gap with plausible-sounding general knowledge.</p>";
+}
+
+/* ================= REBUILD ALL ================= */
+function rebuild(){
+  buildChunks(); renderEmbeddings(); renderIndex(); scoreChunks(); renderPrompt(); generate();
+}
+function scrollToId(id){ var el=$(id); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); }
+
+/* ================= WIRING ================= */
+document.querySelectorAll(".setbtn").forEach(function(b){
+  b.addEventListener("click",function(){
+    document.querySelectorAll(".setbtn").forEach(function(x){x.classList.remove("on");});
+    b.classList.add("on"); state.setKey=b.getAttribute("data-set"); state.presetIdx=0;
+    state.query=SETS[state.setKey].presets[0]; $("queryInput").value=state.query;
+    renderDocs(); rebuild();
+  });
+});
+["chunkSize","overlap","topK","thresh"].forEach(function(id){
+  $(id).addEventListener("input",rebuild);
+});
+$("queryInput").addEventListener("input",function(){ state.query=this.value; state.presetIdx=-1; rebuild(); });
+$("genBtn").addEventListener("click",function(){ generate(); scrollToId("s9"); });
+$("dlBtn").addEventListener("click",function(){
+  var blob=new Blob(["<!doctype html>\n"+document.documentElement.outerHTML],{type:"text/html"});
+  var a=document.createElement("a"); a.href=URL.createObjectURL(blob); a.download="how-rag-works.html"; a.click();
+  setTimeout(function(){URL.revokeObjectURL(a.href);},2000);
+});
+$("runAll").addEventListener("click",function(){
+  var ids=["s1","s2","s3","s4","s5","s6","s7","s8","s9"], i=0;
+  $("pipeStatus").textContent="Running…";
+  function step(){
+    if(i>0){ var prev=$(ids[i-1]); if(prev) prev.classList.remove("flash"); }
+    if(i>=ids.length){ $("pipeStatus").textContent="Pipeline complete ✓ — now tweak any control and watch it re-run"; $("progBar").style.width="100%"; generate(); return; }
+    var el=$(ids[i]); el.classList.add("flash"); el.scrollIntoView({behavior:"smooth",block:"start"});
+    $("progBar").style.width=Math.round((i+1)/ids.length*100)+"%";
+    i++; setTimeout(step,900);
+  }
+  generate(); step();
+});
+/* nav active state */
+var obs=new IntersectionObserver(function(entries){
+  entries.forEach(function(e){
+    if(e.isIntersecting){
+      document.querySelectorAll("#navRow a").forEach(function(a){ a.classList.toggle("active", a.getAttribute("href")==="#"+e.target.id); });
+    }
+  });
+},{rootMargin:"-40% 0px -55% 0px"});
+document.querySelectorAll("section.stage").forEach(function(s){obs.observe(s);});
+
+/* ================= INIT ================= */
+state.query=SETS.work.presets[0];
+$("queryInput").value=state.query;
+renderDocs();
+rebuild();
+</script>
+</body>
+</html>
